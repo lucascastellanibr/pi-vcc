@@ -1,4 +1,5 @@
 import type { NormalizedBlock } from "../types";
+import { clip, nonEmptyLines } from "../core/content";
 
 const ERROR_PATTERNS = [
   /error[:\s]/i,
@@ -17,17 +18,12 @@ export const extractFindings = (blocks: NormalizedBlock[]): string[] => {
   const findings: string[] = [];
 
   for (const b of blocks) {
-    if (b.kind === "tool_result" && b.isError) {
-      const short = b.text.split("\n")[0]?.slice(0, 200);
-      if (short) findings.push(`[${b.name}] Error: ${short}`);
-      continue;
-    }
     if (b.kind !== "assistant") continue;
-    for (const line of b.text.split("\n")) {
+    for (const line of nonEmptyLines(b.text)) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.length < 10) continue;
       if (ERROR_PATTERNS.some((p) => p.test(trimmed))) {
-        findings.push(trimmed.slice(0, 200));
+        findings.push(clip(trimmed, 200));
       }
     }
   }

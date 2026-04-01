@@ -1,4 +1,5 @@
 import type { NormalizedBlock } from "../types";
+import { clip, nonEmptyLines } from "../core/content";
 
 const PREF_PATTERNS = [
   /\bprefer\b/i,
@@ -16,11 +17,11 @@ export const extractPreferences = (blocks: NormalizedBlock[]): string[] => {
 
   for (const b of blocks) {
     if (b.kind !== "user") continue;
-    for (const line of b.text.split("\n")) {
+    for (const line of nonEmptyLines(b.text)) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.length < 5) continue;
       if (PREF_PATTERNS.some((p) => p.test(trimmed))) {
-        prefs.push(trimmed.slice(0, 200));
+        prefs.push(clip(trimmed, 200));
       }
     }
   }

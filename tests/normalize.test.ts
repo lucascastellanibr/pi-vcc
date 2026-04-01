@@ -23,6 +23,11 @@ describe("normalize", () => {
     expect(blocks).toEqual([{ kind: "assistant", text: "done" }]);
   });
 
+  it("normalizes assistant string content", () => {
+    const msg = { ...assistantText("done"), content: "plain text" } as any;
+    expect(normalize([msg])).toEqual([{ kind: "assistant", text: "plain text" }]);
+  });
+
   it("splits assistant thinking + text", () => {
     const blocks = normalize([assistantWithThinking("result", "hmm")]);
     expect(blocks).toHaveLength(2);

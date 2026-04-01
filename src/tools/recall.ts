@@ -4,6 +4,9 @@ import { renderMessage } from "../core/render-entries";
 import { searchEntries } from "../core/search-entries";
 import { formatRecallOutput } from "../core/format-recall";
 
+const DEFAULT_RECENT = 25;
+const MAX_RESULTS = 50;
+
 export const registerRecallTool = (pi: ExtensionAPI) => {
   pi.registerTool({
     name: "vcc_recall",
@@ -22,12 +25,12 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const entries = ctx.sessionManager.getEntries();
       const msgs = entries
-        .filter((e): e is { type: "message"; message: any } =>
-          e.type === "message",
-        )
+        .filter((e): e is { type: "message"; message: any } => e.type === "message")
         .map((e, i) => renderMessage(e.message, i));
 
-      const results = searchEntries(msgs, params.query);
+      const results = params.query?.trim()
+        ? searchEntries(msgs, params.query).slice(0, MAX_RESULTS)
+        : msgs.slice(-DEFAULT_RECENT);
       const output = formatRecallOutput(results, params.query);
 
       return {

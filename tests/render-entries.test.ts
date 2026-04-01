@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { renderMessage } from "../src/core/render-entries";
 import type { Message } from "@mariozechner/pi-ai";
-import { userMsg, assistantText, toolResult } from "./fixtures";
+import { userMsg, assistantText, assistantWithToolCall, toolResult } from "./fixtures";
 
 describe("renderMessage", () => {
   it("renders user message", () => {
@@ -19,6 +19,11 @@ describe("renderMessage", () => {
     const r = renderMessage(toolResult("Read", "file contents"), 2);
     expect(r.role).toBe("tool_result");
     expect(r.summary).toContain("[Read]");
+  });
+
+  it("renders tool call arguments with values", () => {
+    const r = renderMessage(assistantWithToolCall("Read", { path: "a.ts" }), 2);
+    expect(r.summary).toContain("Read(path=a.ts)");
   });
 
   it("renders error tool result with prefix", () => {

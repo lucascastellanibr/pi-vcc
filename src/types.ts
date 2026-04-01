@@ -1,5 +1,11 @@
 import type { Message } from "@mariozechner/pi-ai";
 
+export interface FileOps {
+  readFiles?: string[];
+  modifiedFiles?: string[];
+  createdFiles?: string[];
+}
+
 export type NormalizedBlock =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string }

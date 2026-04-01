@@ -14,9 +14,11 @@ describe("extractFiles", () => {
     const r = extractFiles([], {
       readFiles: ["a.ts"],
       modifiedFiles: ["b.ts"],
+      createdFiles: ["c.ts"],
     });
     expect(r.read.has("a.ts")).toBe(true);
     expect(r.modified.has("b.ts")).toBe(true);
+    expect(r.created.has("c.ts")).toBe(true);
   });
 
   it("detects Read tool", () => {

@@ -1,4 +1,5 @@
-import type { NormalizedBlock } from "../types";
+import type { FileOps, NormalizedBlock } from "../types";
+import { extractPath } from "../core/tool-args";
 
 interface FileActivity {
   read: Set<string>;
@@ -19,21 +20,14 @@ const FILE_CREATE_TOOLS = new Set([
   "Write", "write", "write_file",
 ]);
 
-const extractPath = (args: Record<string, unknown>): string | null => {
-  for (const key of ["path", "file_path", "filePath", "file"]) {
-    if (typeof args[key] === "string") return args[key] as string;
-  }
-  return null;
-};
-
 export const extractFiles = (
   blocks: NormalizedBlock[],
-  fileOps?: { readFiles?: string[]; modifiedFiles?: string[] },
+  fileOps?: FileOps,
 ): FileActivity => {
   const act: FileActivity = {
     read: new Set(fileOps?.readFiles ?? []),
     modified: new Set(fileOps?.modifiedFiles ?? []),
-    created: new Set(),
+    created: new Set(fileOps?.createdFiles ?? []),
   };
 
   for (const b of blocks) {

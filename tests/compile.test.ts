@@ -27,13 +27,14 @@ describe("compile", () => {
     expect(r).toContain("auth.ts");
   });
 
-  it("merges with previousSummary", () => {
+  it("merges by section instead of appending delta blocks", () => {
     const r = compile({
-      messages: [userMsg("continue")],
+      messages: [assistantText("Current state")],
       previousSummary: "[Session Goal]\n- Original goal",
     });
     expect(r).toContain("[Session Goal]\n- Original goal");
-    expect(r).toContain("[Delta Since Last Compaction]");
+    expect(r).toContain("[Current State]");
+    expect(r).not.toContain("[Delta Since Last Compaction]");
   });
 
   it("passes fileOps through to sections", () => {
@@ -42,6 +43,14 @@ describe("compile", () => {
       fileOps: { readFiles: ["config.ts"] },
     });
     expect(r).toContain("config.ts");
+  });
+
+  it("includes customInstructions in decisions", () => {
+    const r = compile({
+      messages: [userMsg("check")],
+      customInstructions: "Keep the summary brief",
+    });
+    expect(r).toContain("Compaction instruction: Keep the summary brief");
   });
 });
 

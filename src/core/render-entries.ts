@@ -1,4 +1,6 @@
 import type { Message } from "@mariozechner/pi-ai";
+import { clip, textOf } from "./content";
+import { summarizeToolArgs } from "./tool-args";
 
 export interface RenderedEntry {
   index: number;
@@ -6,39 +8,27 @@ export interface RenderedEntry {
   summary: string;
 }
 
-const textOf = (content: Message["content"]): string => {
-  if (typeof content === "string") return content;
-  return content
-    .filter((c) => c.type === "text")
-    .map((c) => (c as { text: string }).text)
-    .join("\n");
-};
-
 const toolCalls = (content: Message["content"]): string => {
   if (typeof content === "string") return "";
   return content
     .filter((c) => c.type === "toolCall")
-    .map((c) => {
-      const tc = c as { name: string; arguments: Record<string, unknown> };
-      const path = tc.arguments?.path ?? tc.arguments?.command ?? "";
-      return `${tc.name}(${path})`;
-    })
+    .map((c) => `${c.name}(${summarizeToolArgs(c.arguments)})`)
     .join(", ");
 };
 
 export const renderMessage = (msg: Message, index: number): RenderedEntry => {
   if (msg.role === "user") {
-    return { index, role: "user", summary: textOf(msg.content).slice(0, 300) };
+    return { index, role: "user", summary: clip(textOf(msg.content), 300) };
   }
   if (msg.role === "toolResult") {
     const prefix = msg.isError ? "ERROR " : "";
     return {
       index, role: "tool_result",
-      summary: `${prefix}[${msg.toolName}] ${textOf(msg.content).slice(0, 200)}`,
+      summary: `${prefix}[${msg.toolName}] ${clip(textOf(msg.content), 200)}`,
     };
   }
   // assistant
-  const text = textOf(msg.content).slice(0, 300);
+  const text = clip(textOf(msg.content), 300);
   const tools = toolCalls(msg.content);
   const summary = tools ? `${tools}\n${text}` : text;
   return { index, role: "assistant", summary };

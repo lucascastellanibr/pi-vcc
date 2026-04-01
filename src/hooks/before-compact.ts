@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { compile } from "../core/summarize";
+import type { PiVccCompactionDetails } from "../details";
 
 export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
   pi.on("session_before_compact", (event) => {
@@ -8,12 +9,23 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     const summary = compile({
       messages: preparation.messagesToSummarize,
       previousSummary: preparation.previousSummary,
-      fileOps: preparation.fileOperations,
+      fileOps: {
+        readFiles: [...preparation.fileOps.read],
+        modifiedFiles: [...preparation.fileOps.written, ...preparation.fileOps.edited],
+      },
       customInstructions,
     });
 
+    const details: PiVccCompactionDetails = {
+      compactor: "pi-vcc",
+      version: 1,
+      sections: [...summary.matchAll(/^\[(.+?)\]/gm)].map((m) => m[1]),
+      sourceMessageCount: preparation.messagesToSummarize.length,
+      previousSummaryUsed: Boolean(preparation.previousSummary),
+    };
+
     return {
-      compaction: { summary },
+      compaction: { summary, details },
     };
   });
 };

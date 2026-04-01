@@ -1,29 +1,25 @@
 import type { Message } from "@mariozechner/pi-ai";
 import type { NormalizedBlock } from "../types";
-
-const extractText = (content: Message["content"]): string => {
-  if (typeof content === "string") return content;
-  return content
-    .filter((c) => c.type === "text")
-    .map((c) => (c as { text: string }).text)
-    .join("\n");
-};
+import { textOf } from "./content";
 
 const normalizeOne = (msg: Message): NormalizedBlock[] => {
   if (msg.role === "user") {
-    return [{ kind: "user", text: extractText(msg.content) }];
+    return [{ kind: "user", text: textOf(msg.content) }];
   }
 
   if (msg.role === "toolResult") {
     return [{
       kind: "tool_result",
       name: msg.toolName,
-      text: extractText(msg.content),
+      text: textOf(msg.content),
       isError: msg.isError,
     }];
   }
 
-  // assistant message - split into blocks by content type
+  if (typeof msg.content === "string") {
+    return [{ kind: "assistant", text: msg.content }];
+  }
+
   const blocks: NormalizedBlock[] = [];
   for (const part of msg.content) {
     if (part.type === "text") {

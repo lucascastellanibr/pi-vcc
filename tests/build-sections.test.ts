@@ -25,6 +25,7 @@ describe("buildSections", () => {
     expect(r.filesRead).toContain("auth.ts");
     expect(r.filesModified).toContain("auth.ts");
     expect(r.whatWasDone.length).toBeGreaterThan(0);
+    expect(r.whatWasDone[0]).toContain("auth.ts");
     expect(r.importantFindings.length).toBeGreaterThan(0);
     expect(r.nextSteps).toContain("- run tests next");
   });

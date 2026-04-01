@@ -7,13 +7,11 @@ describe("extractFindings", () => {
     expect(extractFindings([])).toEqual([]);
   });
 
-  it("captures error tool results", () => {
+  it("ignores raw tool errors", () => {
     const blocks: NormalizedBlock[] = [
       { kind: "tool_result", name: "Edit", text: "File not found", isError: true },
     ];
-    const r = extractFindings(blocks);
-    expect(r.length).toBe(1);
-    expect(r[0]).toContain("[Edit] Error:");
+    expect(extractFindings(blocks)).toEqual([]);
   });
 
   it("captures assistant lines matching error patterns", () => {
