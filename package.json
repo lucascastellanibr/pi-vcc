@@ -4,6 +4,10 @@
   "description": "Structured conversation compactor for pi - replaces default compact summary with an agent-optimized structured format.",
   "main": "index.ts",
   "keywords": ["pi-package"],
+  "scripts": {
+    "test": "bun test",
+    "bench": "bun run ./scripts/benchmark-real-sessions.ts"
+  },
   "dependencies": {
     "@mariozechner/pi-coding-agent": "*"
   },
