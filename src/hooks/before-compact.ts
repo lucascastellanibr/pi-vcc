@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { convertToLlm } from "@mariozechner/pi-coding-agent/dist/core/messages.js";
 import { compile } from "../core/summarize";
 import type { PiVccCompactionDetails } from "../details";
 
@@ -6,8 +7,10 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
   pi.on("session_before_compact", (event) => {
     const { preparation, customInstructions } = event;
 
+    const messages = convertToLlm(preparation.messagesToSummarize);
+
     const summary = compile({
-      messages: preparation.messagesToSummarize,
+      messages,
       previousSummary: preparation.previousSummary,
       fileOps: {
         readFiles: [...preparation.fileOps.read],

@@ -71,6 +71,27 @@ describe("normalize", () => {
       "user", "tool_call", "tool_result", "assistant",
     ]);
   });
+
+  it("produces image placeholder for user image content", () => {
+    const msg = {
+      role: "user" as const,
+      content: [
+        { type: "text" as const, text: "look at this" },
+        { type: "image" as const, data: "abc", mimeType: "image/png" },
+      ],
+      timestamp: Date.now(),
+    };
+    const blocks = normalize([msg]);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toEqual({ kind: "user", text: "look at this" });
+    expect(blocks[1]).toEqual({ kind: "user", text: "[image: image/png]" });
+  });
+
+  it("skips unknown message roles gracefully", () => {
+    const weird = { role: "bashExecution", command: "ls", output: "files", exitCode: 0 } as any;
+    const blocks = normalize([weird]);
+    expect(blocks).toEqual([]);
+  });
 });
 
 
