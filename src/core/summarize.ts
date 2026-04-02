@@ -29,12 +29,12 @@ const sectionOf = (text: string, header: string): string => {
 };
 
 const VOLATILE_SECTIONS = new Set([
-  "Current State", "Open Problems", "Next Best Steps",
+  "Outstanding Context",
 ]);
 
 const APPENDABLE_SECTIONS = new Set([
-  "What Was Done", "Important Findings", "Files And Changes",
-  "Decisions And Constraints", "User Preferences",
+  "Key Conversation Turns", "Actions Taken", "Important Evidence",
+  "Files And Changes", "User Preferences",
 ]);
 
 const extractBullets = (section: string): string[] =>
