@@ -97,25 +97,25 @@ Pi's default compaction discards old messages permanently. After compaction, the
 
 `vcc_recall` bypasses this by reading the raw session JSONL file directly. It parses every message entry in the file, renders each one into a searchable `RenderedEntry` with a stable index (matching the message's position in the JSONL), role, truncated summary, and associated file paths. This means entry `#41` always refers to the same message regardless of how many compactions have happened.
 
-**Search** uses multi-term matching -- the query is split into terms and all must appear in the entry's role + summary + file paths. This searches across the entire session including compacted regions:
+**Search** matches against the full content of every entry (not just the truncated summary). The query is split into terms and all must appear. Results show a snippet around the first match with surrounding context:
 
 ```
 vcc_recall({ query: "auth token refresh" })   // all terms must match
 ```
 
-**Browse** without a query returns the last 25 entries:
+**Browse** without a query returns the last 25 entries as brief summaries:
 
 ```
 vcc_recall()
 ```
 
-**Expand** switches to full mode -- entries are rendered without truncation, so you get the complete content for specific indices found via search:
+**Expand** returns full untruncated content for specific indices found via search:
 
 ```
 vcc_recall({ expand: [41, 42] })               // full content, no clipping
 ```
 
-Typical workflow: search brief -> find relevant entry indices -> expand those indices for full content.
+Typical workflow: search -> find relevant entry indices from snippets -> expand those indices for full content.
 
 > Some tool results are truncated by Pi core at save time. `expand` returns everything in the JSONL but can't recover what Pi already cut.
 
