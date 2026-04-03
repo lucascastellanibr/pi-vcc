@@ -1,8 +1,10 @@
 # pi-vcc
 
+[![npm](https://img.shields.io/npm/v/@sting8k/pi-vcc)](https://www.npmjs.com/package/@sting8k/pi-vcc)
+
 Algorithmic conversation compactor for [Pi](https://github.com/badlogic/pi-mono). No LLM calls -- produces structured, transcript-preserving summaries using pure extraction and formatting.
 
-Inspired by [VCC](https://github.com/lllyasviel/VCC) (View-oriented Conversation Compiler).
+Inspired by [VCC](https://github.com/lllyasviel/VCC) **(View-oriented Conversation Compiler)**.
 
 ## Why pi-vcc
 
