@@ -51,7 +51,7 @@ const extractActionsTaken = (blocks: NormalizedBlock[]): string[] => {
   const omitted = collapsed.length - 5;
   return [
     ...collapsed.slice(0, 3),
-    `+${omitted} actions omitted`,
+    `- +${omitted} actions omitted`,
     ...collapsed.slice(-2),
   ];
 };

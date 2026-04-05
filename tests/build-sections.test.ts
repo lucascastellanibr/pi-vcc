@@ -64,7 +64,7 @@ describe("buildSections", () => {
       '* Read "file-0.ts"',
       '* Read "file-1.ts"',
       '* Read "file-2.ts"',
-      '+5 actions omitted',
+      '- +5 actions omitted',
       '* Read "file-8.ts"',
       '* Read "file-9.ts"',
     ]);

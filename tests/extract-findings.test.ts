@@ -14,11 +14,11 @@ describe("extractFindings", () => {
     expect(extractFindings(blocks)).toEqual([]);
   });
 
-  it("captures assistant lines matching error patterns", () => {
+  it("only captures tool results, not assistant text", () => {
     const blocks: NormalizedBlock[] = [
       { kind: "assistant", text: "The root cause is a null pointer" },
     ];
-    expect(extractFindings(blocks).length).toBe(1);
+    expect(extractFindings(blocks).length).toBe(0);
   });
 
   it("ignores short lines", () => {
@@ -28,10 +28,10 @@ describe("extractFindings", () => {
     expect(extractFindings(blocks)).toEqual([]);
   });
 
-  it("deduplicates findings", () => {
+  it("deduplicates tool results", () => {
     const blocks: NormalizedBlock[] = [
-      { kind: "assistant", text: "found that X is broken" },
-      { kind: "assistant", text: "found that X is broken" },
+      { kind: "tool_result", name: "bash", text: "same output repeated here", isError: false },
+      { kind: "tool_result", name: "bash", text: "same output repeated here", isError: false },
     ];
     expect(extractFindings(blocks).length).toBe(1);
   });
