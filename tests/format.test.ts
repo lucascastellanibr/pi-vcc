@@ -6,6 +6,7 @@ const empty: SectionData = {
   sessionGoal: [],
   outstandingContext: [],
   filesAndChanges: [],
+  userPreferences: [],
   briefTranscript: "",
 };
 

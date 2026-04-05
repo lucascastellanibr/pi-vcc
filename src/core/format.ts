@@ -24,6 +24,7 @@ export const formatSummary = (data: SectionData): string => {
     section("Session Goal", data.sessionGoal),
     section("Files And Changes", data.filesAndChanges),
     section("Outstanding Context", data.outstandingContext),
+    section("User Preferences", data.userPreferences),
   ].filter(Boolean);
 
   const parts: string[] = [];

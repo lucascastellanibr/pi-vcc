@@ -3,6 +3,7 @@ import { clip, firstLine, nonEmptyLines } from "./content";
 import type { SectionData } from "../sections";
 import { extractGoals } from "../extract/goals";
 import { extractFiles } from "../extract/files";
+import { extractPreferences } from "../extract/preferences";
 import { compileBrief } from "./brief";
 
 export interface BuildSectionsInput {
@@ -56,6 +57,7 @@ export const buildSections = (input: BuildSectionsInput): SectionData => {
     sessionGoal: extractGoals(blocks),
     outstandingContext: extractOutstandingContext(blocks),
     filesAndChanges: formatFileActivity(blocks),
+    userPreferences: extractPreferences(blocks),
     briefTranscript: compileBrief(blocks),
   };
 };
