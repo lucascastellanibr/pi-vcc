@@ -54,9 +54,8 @@ export interface CompactReport {
     findingsCount: number;
     filesCount: number;
     blockersCount: number;
-    decisionsCount: number;
+
     preferencesCount: number;
-    nextStepsCount: number;
   };
   compression: {
     charsBefore: number;
@@ -104,7 +103,7 @@ const countBlocks = (messages: Message[]): BlockCounts => {
 
 const inputCharsOf = (messages: Message[]): number =>
   messages
-    .map((msg, index) => renderMessage(msg, index).summary.length)
+    .map((msg, index) => renderMessage(msg, index, true).summary.length)
     .reduce((sum, len) => sum + len, 0);
 
 const topFilesOf = (messages: Message[], fileOps?: CompileInput["fileOps"]): string[] => {
@@ -161,7 +160,7 @@ const probesOf = (messages: Message[], summary: string, fileOps?: CompileInput["
   const rawProbes = [
     { label: "goal", text: data.sessionGoal[0] ?? "" },
     { label: "file", text: [...data.filesModified, ...data.filesCreated, ...data.filesRead][0] ?? "" },
-    { label: "problem", text: data.openProblems[0] ?? data.importantFindings[0] ?? "" },
+    { label: "problem", text: data.outstandingContext[0] ?? data.importantEvidence[0] ?? "" },
   ];
 
   const rendered = messages.map((msg, index) => renderMessage(msg, index));
@@ -205,12 +204,10 @@ export const buildCompactReport = (input: CompileInput): CompactReport => {
       sectionCount: sectionCountOf(summary),
       summaryPreview: summary,
       goalsCount: data.sessionGoal.length,
-      findingsCount: data.importantFindings.length,
+      findingsCount: data.importantEvidence.length,
       filesCount: data.filesRead.length + data.filesModified.length + data.filesCreated.length,
-      blockersCount: data.openProblems.length,
-      decisionsCount: data.decisions.length,
+      blockersCount: data.outstandingContext.length,
       preferencesCount: data.userPreferences.length,
-      nextStepsCount: data.nextSteps.length,
     },
     compression: {
       charsBefore: inputChars,

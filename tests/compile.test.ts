@@ -45,6 +45,45 @@ describe("compile", () => {
     });
     expect(r).toContain("config.ts");
   });
+
+  it("re-caps rolling sections after merge", () => {
+    const previousSummary = [
+      "[Actions Taken]",
+      "- * Read \"a.ts\"",
+      "- * Read \"b.ts\"",
+      "- * Read \"c.ts\"",
+      "- * Read \"d.ts\"",
+      "- * Read \"e.ts\"",
+      "- * Read \"f.ts\"",
+      "- * Read \"g.ts\"",
+      "- * Read \"h.ts\"",
+    ].join("\n");
+    const r = compile({
+      previousSummary,
+      messages: [
+        assistantWithToolCall("Read", { path: "i.ts" }),
+        assistantWithToolCall("Read", { path: "j.ts" }),
+      ],
+    });
+    expect(r).toContain('[Actions Taken]');
+    expect(r).toContain('+5 actions omitted');
+    expect(r).toContain('* Read "a.ts"');
+    expect(r).toContain('* Read "j.ts"');
+    expect(r).not.toContain('* Read "d.ts"');
+    expect(r).not.toContain('* Read "e.ts"');
+    expect(r).not.toContain('* Read "f.ts"');
+  });
+
+  it("flattens multiline evidence into a single bullet line", () => {
+    const r = compile({
+      messages: [
+        toolResult("bash", "line one\nline two\nline three"),
+      ],
+    });
+    expect(r).toContain('[Important Evidence]');
+    expect(r).toContain('[bash] line one line two line three');
+    expect(r).not.toContain('[bash] line one\nline two');
+  });
 });
 
 

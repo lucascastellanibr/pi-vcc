@@ -12,7 +12,8 @@ Inspired by [VCC](https://github.com/lllyasviel/VCC) **(View-oriented Conversati
 |---|---|---|
 | **Method** | LLM-generated summary | Algorithmic extraction, no LLM |
 | **Determinism** | Non-deterministic, can hallucinate | Same input = same output, always |
-| **Token reduction** | Varies | ~58% measured (30k -> 12.5k) |
+| **Token reduction** | Varies | 79-99% on real sessions |
+| **Compaction latency** | Waits for LLM call | 10-370ms, no API calls |
 | **History after compaction** | Gone -- agent only sees summary | Fully searchable via `vcc_recall` |
 | **Repeated compactions** | Each rewrite risks losing more | Sections merge and accumulate |
 | **Cost** | Burns tokens on summarization call | Zero -- no API calls |
@@ -20,20 +21,24 @@ Inspired by [VCC](https://github.com/lllyasviel/VCC) **(View-oriented Conversati
 
 ### Real session metrics
 
-| Compaction | Before | After | Reduction |
+Measured with `buildCompactReport()` on the 5 largest real session JSONLs under `~/.pi/agent/sessions`, using full message content for `charsBefore`.
+
+| Session | Before | After | Reduction |
 |---|---|---|---|
-| 1st | 25,832 | 18,974 | 26.5% |
-| 2nd (full cut) | 30,020 | 12,507 | 58.3% |
-| 3rd (merge) | 15,915 | ~8,800 | ~45% |
+| Largest #1 | 55,605 | 11,181 | 79.9% |
+| Largest #2 | 213,881 | 5,478 | 97.4% |
+| Largest #3 | 4,280,983 | 1,626 | 99.96% |
+| Largest #4 | 74,183 | 7,085 | 90.5% |
+| Largest #5 | 24,582 | 3,580 | 85.4% |
 
 ## Features
 
 - **No LLM** -- purely algorithmic, zero extra API cost
-- **~58% token reduction** with transcript-preserving structured output
-- **Lossless recall** -- `vcc_recall` reads raw session JSONL, history stays searchable across compactions
-- **Incremental merge** -- turns, actions, evidence, files accumulate; only volatile context refreshes
-- **VCC-style tool collapsing** -- tool calls become deduplicated one-liners
-- **Fallback cut** -- works even when Pi core returns nothing to summarize
+- **Structured summaries** -- 7 semantic sections: goals, turns, actions, evidence, files, context, preferences
+- **Bounded merge** -- rolling sections are re-capped after merge instead of growing into an archive
+- **Exact duplicate collapsing** -- repeated identical tool actions collapse into one line; long action lists show first/last with an omitted count
+- **Lossless recall** -- `vcc_recall` reads raw session JSONL, so old history stays searchable across compactions
+- **Fallback cut** -- still works when Pi core returns nothing to summarize
 - **Redaction** -- strips passwords, API keys, secrets
 - **`/pi-vcc`** -- manual compaction on demand
 
@@ -57,7 +62,13 @@ pi -e https://github.com/sting8k/pi-vcc
 
 ## Usage
 
-Once linked, pi-vcc hooks `session_before_compact` and handles compaction automatically. Output looks like:
+Once linked, pi-vcc registers a `session_before_compact` hook.
+
+- When Pi triggers a compaction, pi-vcc can supply the summary.
+- To trigger compaction manually, run `/pi-vcc`.
+- To search older history after compaction, use `vcc_recall`.
+
+Output keeps the current semantic section format, with rolling sections bounded across repeated compactions:
 
 ```
 [Session Goal]
@@ -71,15 +82,18 @@ Once linked, pi-vcc hooks `session_before_compact` and handles compaction automa
 - * Read "src/auth/session.ts"
 - * Edit "src/auth/session.ts"
 - * bash "bun test tests/auth.test.ts"
+- +4 actions omitted
+- * bash "git diff -- src/auth/session.ts"
+- * bash "bun test tests/session.test.ts"
 
 [Important Evidence]
 - [Read] export function refreshSession(token) { if (!token) return null;...(truncated)
 - [bash] Tests: 12 passed, 0 failed
 
 [Files And Changes]
-Modified:
-  - src/auth/session.ts
 Read:
+  - src/auth/session.ts
+Modified:
   - src/auth/session.ts
 
 [Outstanding Context]
@@ -89,7 +103,11 @@ Read:
 - Prefer Vietnamese responses
 ```
 
-Use `/pi-vcc` to trigger compaction manually.
+Bounded merge policy:
+- `Session Goal`, `User Preferences`: concise sticky sections
+- `Key Conversation Turns`, `Actions Taken`, `Important Evidence`: rolling sections, re-capped after merge
+- `Outstanding Context`: fresh-only
+- `Files And Changes`: unique union
 
 ## Recall (Lossless History)
 

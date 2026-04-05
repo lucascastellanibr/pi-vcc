@@ -3,10 +3,15 @@ import { formatSummary } from "../src/core/format";
 import type { SectionData } from "../src/sections";
 
 const empty: SectionData = {
-  sessionGoal: [], currentState: [], whatWasDone: [],
-  importantFindings: [], filesRead: [], filesModified: [],
-  filesCreated: [], openProblems: [], decisions: [],
-  userPreferences: [], nextSteps: [],
+  sessionGoal: [],
+  keyConversationTurns: [],
+  actionsTaken: [],
+  importantEvidence: [],
+  filesRead: [],
+  filesModified: [],
+  filesCreated: [],
+  outstandingContext: [],
+  userPreferences: [],
 };
 
 describe("formatSummary", () => {
@@ -36,12 +41,12 @@ describe("formatSummary", () => {
     const data = {
       ...empty,
       sessionGoal: ["goal"],
-      nextSteps: ["step 1"],
+      outstandingContext: ["context"],
     };
     const r = formatSummary(data);
     expect(r).toContain("\n\n");
     expect(r).toContain("[Session Goal]");
-    expect(r).toContain("[Next Best Steps]");
+    expect(r).toContain("[Outstanding Context]");
   });
 });
 

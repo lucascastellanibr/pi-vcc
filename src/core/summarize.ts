@@ -39,6 +39,23 @@ const APPENDABLE_SECTIONS = new Set([
 const extractBullets = (section: string): string[] =>
   section.split("\n").filter((l) => /^\s*[-*]/.test(l) || /^\s*(Read|Modified|Created):/.test(l));
 
+const capMergedBullets = (header: string, bullets: string[]): string[] => {
+  if (header === "Key Conversation Turns") return bullets.slice(-8);
+  if (header === "Important Evidence") return bullets.slice(-8);
+  if (header === "User Preferences") return bullets.slice(-6);
+  if (header === "Files And Changes") return bullets.slice(0, 12);
+  if (header === "Actions Taken") {
+    if (bullets.length <= 8) return bullets;
+    const omitted = bullets.length - 5;
+    return [
+      ...bullets.slice(0, 3),
+      `- +${omitted} actions omitted`,
+      ...bullets.slice(-2),
+    ];
+  }
+  return bullets;
+};
+
 const mergeSectionContent = (header: string, prev: string, fresh: string): string => {
   if (!prev) return fresh;
   if (!fresh) {
@@ -49,9 +66,9 @@ const mergeSectionContent = (header: string, prev: string, fresh: string): strin
   if (APPENDABLE_SECTIONS.has(header)) {
     const oldBullets = extractBullets(prev);
     const newBullets = extractBullets(fresh);
-    const combined = [...new Set([...oldBullets, ...newBullets])];
+    const combined = capMergedBullets(header, [...new Set([...oldBullets, ...newBullets])]);
     const headerLine = `[${header}]`;
-    return headerLine + "\n" + combined.join("\n");
+    return combined.length > 0 ? headerLine + "\n" + combined.join("\n") : "";
   }
   return fresh;
 };

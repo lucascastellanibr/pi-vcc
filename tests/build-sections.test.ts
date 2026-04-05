@@ -52,5 +52,22 @@ describe("buildSections", () => {
     expect(r.actionsTaken.length).toBe(1);
     expect(r.actionsTaken[0]).toContain("x3");
   });
+
+  it("caps long action lists with first and last entries", () => {
+    const blocks: NormalizedBlock[] = Array.from({ length: 10 }, (_, i) => ({
+      kind: "tool_call" as const,
+      name: "Read",
+      args: { path: `file-${i}.ts` },
+    }));
+    const r = buildSections({ blocks });
+    expect(r.actionsTaken).toEqual([
+      '* Read "file-0.ts"',
+      '* Read "file-1.ts"',
+      '* Read "file-2.ts"',
+      '+5 actions omitted',
+      '* Read "file-8.ts"',
+      '* Read "file-9.ts"',
+    ]);
+  });
 });
 

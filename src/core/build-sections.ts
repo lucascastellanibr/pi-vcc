@@ -43,9 +43,17 @@ const extractActionsTaken = (blocks: NormalizedBlock[]): string[] => {
   }
   const counts = new Map<string, number>();
   for (const d of raw) counts.set(d, (counts.get(d) ?? 0) + 1);
-  return [...counts.entries()]
-    .map(([k, v]) => (v > 1 ? `${k} x${v}` : k))
-    .slice(0, 20);
+  const collapsed: string[] = [...counts.entries()]
+    .map(([k, v]) => (v > 1 ? `${k} x${v}` : k));
+
+  if (collapsed.length <= 8) return collapsed;
+
+  const omitted = collapsed.length - 5;
+  return [
+    ...collapsed.slice(0, 3),
+    `+${omitted} actions omitted`,
+    ...collapsed.slice(-2),
+  ];
 };
 
 const FILLER_RE = /^(ok|sure|done|got it|alright|let me|i('ll| will)|here'?s|understood)/i;
@@ -55,8 +63,9 @@ const BLOCKER_RE =
 const TRUNCATE_TOKENS = 128;
 
 const truncateText = (text: string, limit = TRUNCATE_TOKENS): string => {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length <= limit) return text;
+  const flat = text.replace(/\s+/g, " ").trim();
+  const words = flat.split(/\s+/).filter(Boolean);
+  if (words.length <= limit) return flat;
   return words.slice(0, limit).join(" ") + "...(truncated)";
 };
 
