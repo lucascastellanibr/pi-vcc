@@ -73,18 +73,11 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
   pi.on("session_before_compact", (event) => {
     const { preparation, branchEntries } = event;
 
-    let agentMessages = preparation.messagesToSummarize;
-    let firstKeptEntryId = preparation.firstKeptEntryId;
+    const ownCut = buildOwnCut(branchEntries as any[]);
+    if (!ownCut) return;
 
-    // If pi-core's preparation has nothing to summarize, build our own cut
-    if (agentMessages.length === 0) {
-      const ownCut = buildOwnCut(branchEntries as any[]);
-      if (ownCut) {
-        agentMessages = ownCut.messages;
-        firstKeptEntryId = ownCut.firstKeptEntryId;
-      }
-    }
-
+    const agentMessages = ownCut.messages;
+    const firstKeptEntryId = ownCut.firstKeptEntryId;
     const messages = convertToLlm(agentMessages);
 
     const summary = compile({
@@ -108,7 +101,7 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
       : [];
 
     dbg({
-      usedOwnCut: agentMessages !== preparation.messagesToSummarize,
+      usedOwnCut: true,
       messagesToSummarize: agentMessages.length,
       messagesPreviewHead: agentMessages.slice(0, 3).map((m: any) => ({ role: m.role, preview: previewContent(m.content) })),
       messagesPreviewTail: agentMessages.slice(-3).map((m: any) => ({ role: m.role, preview: previewContent(m.content) })),

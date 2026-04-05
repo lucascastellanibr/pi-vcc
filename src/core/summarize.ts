@@ -67,15 +67,10 @@ const mergePrevious = (prev: string, fresh: string): string => {
   return merged.join("\n\n");
 };
 
-const SUMMARY_MAX_CHARS = 12_000;
-
 export const compile = (input: CompileInput): string => {
   const blocks = filterNoise(normalize(input.messages));
   const data = buildSections({ blocks, fileOps: input.fileOps });
   const fresh = formatSummary(data);
   const merged = input.previousSummary ? mergePrevious(input.previousSummary, fresh) : fresh;
-  const redacted = redact(merged);
-  return redacted.length > SUMMARY_MAX_CHARS
-    ? redacted.slice(0, SUMMARY_MAX_CHARS) + "\n...(summary truncated)"
-    : redacted;
+  return redact(merged);
 };
