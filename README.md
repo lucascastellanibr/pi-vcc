@@ -12,8 +12,8 @@ Inspired by [VCC](https://github.com/lllyasviel/VCC) **(View-oriented Conversati
 |---|---|---|
 | **Method** | LLM-generated summary | Algorithmic extraction, no LLM |
 | **Determinism** | Non-deterministic, can hallucinate | Same input = same output, always |
-| **Token reduction** | Varies | 79-99% on real sessions |
-| **Compaction latency** | Waits for LLM call | 10-370ms, no API calls |
+| **Token reduction** | Varies | 35-99% on real sessions (higher on longer sessions) |
+| **Compaction latency** | Waits for LLM call | 30-470ms, no API calls |
 | **History after compaction** | Gone — agent only sees summary | Fully searchable via `vcc_recall` |
 | **Repeated compactions** | Each rewrite risks losing more | Sections merge and accumulate |
 | **Cost** | Burns tokens on summarization call | Zero — no API calls |
@@ -21,15 +21,17 @@ Inspired by [VCC](https://github.com/lllyasviel/VCC) **(View-oriented Conversati
 
 ### Real session metrics
 
-Measured on the 5 largest real session JSONLs under `~/.pi/agent/sessions`.
+Measured on real session JSONLs under `~/.pi/agent/sessions` (chars = rendered message text).
 
-| Session | Before | After | Reduction |
-|---|---|---|---|
-| Largest #1 | 55,605 | 11,181 | 79.9% |
-| Largest #2 | 213,881 | 5,478 | 97.4% |
-| Largest #3 | 4,280,983 | 1,626 | 99.96% |
-| Largest #4 | 74,183 | 7,085 | 90.5% |
-| Largest #5 | 24,582 | 3,580 | 85.4% |
+| Session | Messages | Before | After | Reduction | Time |
+|---|---|---|---|---|---|
+| Session A | 2,943 | 997,162 | 7,959 | 99.2% | 64ms |
+| Session B | 1,703 | 428,334 | 7,762 | 98.2% | 29ms |
+| Session C | 1,657 | 424,183 | 9,577 | 97.7% | 54ms |
+| Session D | 1,004 | 2,258,477 | 4,439 | 99.8% | 30ms |
+| Session E | 486 | 295,006 | 11,163 | 96.2% | 30ms |
+| Session F | 46 | 5,234 | 3,364 | 35.7% | 5ms |
+| Session G | 27 | 8,595 | 2,489 | 71.0% | 2ms |
 
 ## Features
 
