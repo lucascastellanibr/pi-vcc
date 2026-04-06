@@ -40,32 +40,45 @@ interface EntryWithMessage {
 }
 
 function buildOwnCut(branchEntries: any[]): { messages: any[]; firstKeptEntryId: string } | null {
-  const postCompaction: EntryWithMessage[] = [];
-  for (const e of branchEntries) {
-    if (e.type === "compaction") {
-      postCompaction.length = 0;
-      continue;
-    }
-    if (e.type === "message" && e.message) {
-      postCompaction.push({ entry: e, message: e.message });
+  // Find the last compaction entry and its firstKeptEntryId
+  let lastCompactionIdx = -1;
+  let lastKeptId: string | undefined;
+  for (let i = branchEntries.length - 1; i >= 0; i--) {
+    if (branchEntries[i].type === "compaction") {
+      lastCompactionIdx = i;
+      lastKeptId = branchEntries[i].firstKeptEntryId;
+      break;
     }
   }
 
-  if (postCompaction.length <= 2) return null;
+  // Collect live messages: either from firstKeptEntryId (if prev compaction exists)
+  // or all messages (no prior compaction)
+  const liveMessages: EntryWithMessage[] = [];
+  let foundKept = !lastKeptId; // if no prior compaction, start collecting immediately
+  for (const e of branchEntries) {
+    if (!foundKept && e.id === lastKeptId) foundKept = true;
+    if (!foundKept) continue;
+    if (e.type === "compaction") continue; // skip the compaction entry itself
+    if (e.type === "message" && e.message) {
+      liveMessages.push({ entry: e, message: e.message });
+    }
+  }
+
+  if (liveMessages.length <= 2) return null;
 
   // Summarize all messages, keep only the last user message as context
-  let cutIdx = postCompaction.length - 1;
+  let cutIdx = liveMessages.length - 1;
 
   // Align to last user message boundary
-  while (cutIdx > 0 && postCompaction[cutIdx].message.role !== "user") {
+  while (cutIdx > 0 && liveMessages[cutIdx].message.role !== "user") {
     cutIdx--;
   }
 
   if (cutIdx <= 0) return null;
 
   return {
-    messages: postCompaction.slice(0, cutIdx).map((e) => e.message),
-    firstKeptEntryId: postCompaction[cutIdx].entry.id,
+    messages: liveMessages.slice(0, cutIdx).map((e) => e.message),
+    firstKeptEntryId: liveMessages[cutIdx].entry.id,
   };
 }
 
@@ -74,7 +87,7 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     const { preparation, branchEntries } = event;
 
     const ownCut = buildOwnCut(branchEntries as any[]);
-    if (!ownCut) return;
+    if (!ownCut) return { cancel: true };
 
     const agentMessages = ownCut.messages;
     const firstKeptEntryId = ownCut.firstKeptEntryId;
