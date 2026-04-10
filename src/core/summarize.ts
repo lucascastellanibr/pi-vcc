@@ -45,6 +45,9 @@ const mergeHeaderSection = (header: string, prev: string, fresh: string): string
   // Outstanding Context is volatile — always use fresh only
   if (header === "Outstanding Context") return fresh;
   // Session Goal & Files And Changes: append new items, dedupe
+  // TODO: cap at ~10 most recent entries to prevent unbounded growth
+  //   Evidence: real sessions show 4→31 goal lines, 3→29 files lines over 14 compactions
+  //   Also filter <skill> tags and casual remarks from Session Goal
   if (!prev) return fresh;
   if (!fresh) return prev;
   const prevLines = prev.split("\n").filter((l) => l.startsWith("- "));

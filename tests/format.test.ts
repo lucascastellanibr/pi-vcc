@@ -43,8 +43,8 @@ describe("formatSummary", () => {
       briefTranscript: "[user]\nhi\n\n[assistant]\nhello",
     };
     const r = formatSummary(data);
-    expect(r).toBe("[user]\nhi\n\n[assistant]\nhello");
-    expect(r).not.toContain("---");
+    expect(r).toContain("[user]\nhi\n\n[assistant]\nhello");
+    expect(r).toContain("vcc_recall");
   });
 
   it("joins multiple header sections with blank line", () => {

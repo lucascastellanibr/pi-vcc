@@ -3,3 +3,5 @@ dist/
 bun.lock
 *.tsbuildinfo
 .pi/
+docs/
+run_compare.ts
