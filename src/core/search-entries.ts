@@ -183,45 +183,31 @@ export const searchEntries = (
     return hits;
   }
 
-  // Natural language / multi-word query: BM25 scoring
+  // Natural language / multi-word query: OR logic + rank by match count
+  // BM25 scoring is available (see bm25Score/buildBM25Context above) but
+  // disabled for now to evaluate whether simple matchCount is sufficient.
   const rawTerms = rawQuery.split(/\s+/);
   const terms = filterStopwords(rawTerms);
   const snipRe = snippetRegex(terms);
 
-  // Build all docs for BM25 context
-  const docs: string[] = [];
+  const scored: Array<{ hit: SearchHit; score: number }> = [];
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
     const msg = messages[i];
     const text = msg ? fullText(msg) : e.summary;
     const filePart = e.files?.join(" ") ?? "";
-    docs.push(`${e.role} ${text} ${filePart}`);
-  }
+    const hay = `${e.role} ${text} ${filePart}`;
 
-  const ctx = buildBM25Context(docs, terms);
-
-  const scored: Array<{ hit: SearchHit; score: number }> = [];
-  for (let i = 0; i < entries.length; i++) {
-    const e = entries[i];
-    const hay = docs[i];
     const mc = countMatches(hay, terms);
     if (mc === 0) continue;
-    const score = bm25Score(hay, terms, ctx);
-    const text = messages[i] ? fullText(messages[i]) : e.summary;
     const snip = lineSnippet(text, snipRe);
     scored.push({
       hit: { ...e, snippet: snip, matchCount: mc },
-      score,
+      score: mc,
     });
   }
 
-  // Sort by BM25 score desc, drop low-relevance tail
+  // Sort by match count desc (more terms matched = more relevant)
   scored.sort((a, b) => b.score - a.score);
-  if (scored.length > 0) {
-    const topScore = scored[0].score;
-    const threshold = topScore * 0.3;
-    const cutoff = scored.findIndex((s) => s.score < threshold);
-    if (cutoff > 0) scored.length = cutoff;
-  }
   return scored.map((s) => s.hit);
 };
