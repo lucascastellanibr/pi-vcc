@@ -21,8 +21,8 @@ const loadAllMessages = (sessionFile: string, full: boolean) => {
 };
 
 export const registerVccRecallCommand = (pi: ExtensionAPI) => {
-  pi.registerCommand("vcc-recall", {
-    description: "Search conversation history (same as vcc_recall tool). Usage: /vcc-recall <query> [page:N]",
+  pi.registerCommand("pi-vcc-recall", {
+    description: "Search conversation history (same as vcc_recall tool). Usage: /pi-vcc-recall <query> [page:N]",
     handler: async (args: string, ctx) => {
       const sessionFile = ctx.sessionManager.getSessionFile();
       if (!sessionFile) {
@@ -63,7 +63,7 @@ export const registerVccRecallCommand = (pi: ExtensionAPI) => {
         ? `Page ${page}/${totalPages} (${allResults.length} total matches)`
         : `${allResults.length} matches`;
       const footer = page < totalPages
-        ? `\n--- /vcc-recall ${query} page:${page + 1} ---`
+        ? `\n--- /pi-vcc-recall ${query} page:${page + 1} ---`
         : "";
       const output = formatRecallOutput(pageResults, query, header) + footer;
       pi.sendMessage({ customType: "vcc-recall", content: output, display: true }, { triggerTurn: true });
