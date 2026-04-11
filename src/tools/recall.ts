@@ -1,27 +1,11 @@
 import { Type } from "@sinclair/typebox";
-import { readFileSync } from "fs";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { renderMessage } from "../core/render-entries";
+import { loadAllMessages } from "../core/load-messages";
 import { searchEntries } from "../core/search-entries";
 import { formatRecallOutput } from "../core/format-recall";
 
 const DEFAULT_RECENT = 25;
 const PAGE_SIZE = 5;
-
-const loadAllMessages = (sessionFile: string, full: boolean) => {
-  const content = readFileSync(sessionFile, "utf-8");
-  const entries: any[] = [];
-  for (const line of content.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      entries.push(JSON.parse(line));
-    } catch {}
-  }
-  const messageEntries = entries.filter((e) => e.type === "message" && e.message);
-  const rendered = messageEntries.map((e, i) => renderMessage(e.message, i, full));
-  const rawMessages = messageEntries.map((e) => e.message);
-  return { rendered, rawMessages };
-};
 
 export const registerRecallTool = (pi: ExtensionAPI) => {
   pi.registerTool({
