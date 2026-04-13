@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { getLastCompactionStats } from "../hooks/before-compact";
+import { getLastCompactionStats, PI_VCC_COMPACT_INSTRUCTION } from "../hooks/before-compact";
 
 const formatTokens = (n: number): string => {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
@@ -11,6 +11,7 @@ export const registerPiVccCommand = (pi: ExtensionAPI) => {
     description: "Compact conversation with pi-vcc structured summary",
     handler: async (_args, ctx) => {
       ctx.compact({
+        customInstructions: PI_VCC_COMPACT_INSTRUCTION,
         onComplete: () => {
           const stats = getLastCompactionStats();
           if (stats) {

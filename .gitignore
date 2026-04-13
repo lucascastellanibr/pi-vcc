@@ -5,3 +5,4 @@ bun.lock
 .pi/
 docs/
 run_compare.ts
+.pi-mux-state.json

@@ -7,6 +7,7 @@ import { compile } from "../core/summarize";
 import type { PiVccCompactionDetails } from "../details";
 
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-vcc-config.json");
+export const PI_VCC_COMPACT_INSTRUCTION = "__pi_vcc__";
 
 export interface CompactionStats {
   summarized: number;
@@ -97,7 +98,8 @@ function buildOwnCut(branchEntries: any[]): { messages: any[]; firstKeptEntryId:
 
 export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
   pi.on("session_before_compact", (event) => {
-    const { preparation, branchEntries } = event;
+    const { preparation, branchEntries, customInstructions } = event;
+    if (customInstructions !== PI_VCC_COMPACT_INSTRUCTION) return;
 
     const ownCut = buildOwnCut(branchEntries as any[]);
     if (!ownCut) return { cancel: true };
