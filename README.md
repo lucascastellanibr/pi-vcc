@@ -37,14 +37,13 @@ Measured on real session JSONLs under `~/.pi/agent/sessions` (chars = rendered m
 
 - **No LLM** — purely algorithmic, zero extra API cost
 - **Brief transcript** — chronological conversation flow, each tool call collapsed to a one-liner with `(#N)` refs, text truncated to keep it compact
-- **4 semantic sections** — session goal, files & changes, outstanding context, user preferences
+- **5 semantic sections** — session goal, files & changes, commits, outstanding context, user preferences
 - **Bounded merge** — rolling sections re-capped after merge instead of growing unbounded
 - **Lossless recall** — `vcc_recall` reads raw session JSONL, so old history stays searchable across compactions
 - **Regex search** — `vcc_recall` supports regex patterns (`hook|inject`, `fail.*build`) and OR-ranked multi-word queries
 - **Result ranking** — search results ranked by term relevance, rare terms weighted higher than common ones
 - **`/pi-vcc-recall`** — slash command to search history directly, results shown as collapsible message and auto-fed to agent as context
 - **Fallback cut** — still works when Pi core returns nothing to summarize
-- **Redaction** — strips passwords, API keys, secrets
 - **`/pi-vcc`** — manual compaction on demand
 
 ## Install
@@ -87,6 +86,9 @@ Once installed, pi-vcc registers a `session_before_compact` hook.
 - Modified: src/auth/session.ts
 - Created: tests/auth-refresh.test.ts
 
+[Commits]
+- a1b2c3d: fix(auth): refresh token after password reset
+
 [Outstanding Context]
 - lint check still failing on line 42
 
@@ -119,7 +121,8 @@ also update the session expiry logic
 | Section | Description |
 |---|---|
 | `[Session Goal]` | Initial goal + scope changes (regex-based extraction) |
-| `[Files And Changes]` | Modified/created files from tool calls (capped) |
+| `[Files And Changes]` | Modified/created files from tool calls (capped, paths trimmed to common root) |
+| `[Commits]` | Git commits made during the session (last 8, hash + first line) |
 | `[Outstanding Context]` | Unresolved items — errors, pending questions |
 | `[User Preferences]` | Regex-extracted from user messages (`always`, `never`, `prefer`...) |
 | Brief transcript | Chronological conversation flow — rolling window of ~120 recent lines, tool calls collapsed to one-liners with `(#N)` refs |
@@ -127,7 +130,7 @@ also update the session expiry logic
 **Merge policy:**
 - `Session Goal`, `User Preferences`: concise sticky sections
 - `Outstanding Context`: fresh-only (replaced each compaction)
-- `Files And Changes`: unique union across compactions
+- `Files And Changes`, `Commits`: unique union across compactions
 - Brief transcript: rolling window, older lines drop off
 
 ## Recall (Lossless History)
@@ -174,8 +177,7 @@ Typical workflow: **search → find relevant entry indices → expand those indi
 3. **Build sections** — extract goal, file paths, blockers, preferences
 4. **Brief transcript** — chronological conversation flow, tool calls collapsed to one-liners, text truncated
 5. **Format** — render into bracketed sections + transcript
-6. **Redact** — strip passwords, API keys, secrets
-7. **Merge** — if previous summary exists: sticky sections merge, volatile sections replace, transcript rolls
+6. **Merge** — if previous summary exists: sticky sections merge, volatile sections replace, transcript rolls
 
 ## Debug
 
