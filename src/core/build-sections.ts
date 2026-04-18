@@ -1,9 +1,10 @@
 import type { NormalizedBlock } from "../types";
-import { clip, firstLine, nonEmptyLines } from "./content";
+import { clip, clipSentence, firstLine, nonEmptyLines } from "./content";
 import type { SectionData } from "../sections";
 import { extractGoals } from "../extract/goals";
 import { extractFiles } from "../extract/files";
-import { extractPreferences } from "../extract/preferences";
+import { extractPreferences, dedupPreferencesAgainstGoals } from "../extract/preferences";
+import { extractCommits, formatCommits } from "../extract/commits";
 import { buildBriefSections, sectionsToTranscript, stringifyBrief } from "./brief";
 
 export interface BuildSectionsInput {
@@ -27,7 +28,12 @@ const extractOutstandingContext = (blocks: NormalizedBlock[]): string[] => {
       for (const line of nonEmptyLines(b.text)) {
         if (!BLOCKER_RE.test(line)) continue;
         if (line.length < 15) continue;
-        const clipped = b.kind === "user" ? `[user] ${clip(line, 150)}` : clip(line, 150);
+        // Skip continuation fragments (sub-bullets, parentheticals, dangling clauses)
+        if (/^\s*[-*+>]\s/.test(line)) continue;
+        if (/^\s*\(/.test(line)) continue;
+        // Require sentence-like start: capital letter, code identifier, or quote
+        if (!/^\s*["'`*_]?[A-Z`]/.test(line)) continue;
+        const clipped = b.kind === "user" ? `[user] ${clipSentence(line, 150)}` : clipSentence(line, 150);
         if (!items.includes(clipped)) items.push(clipped);
         break;
       }
@@ -56,11 +62,17 @@ const formatFileActivity = (blocks: NormalizedBlock[]): string[] => {
 export const buildSections = (input: BuildSectionsInput): SectionData => {
   const { blocks } = input;
   const briefSections = buildBriefSections(blocks);
+  const sessionGoal = extractGoals(blocks);
+  const userPreferences = dedupPreferencesAgainstGoals(
+    extractPreferences(blocks),
+    sessionGoal,
+  );
   return {
-    sessionGoal: extractGoals(blocks),
+    sessionGoal,
     outstandingContext: extractOutstandingContext(blocks),
     filesAndChanges: formatFileActivity(blocks),
-    userPreferences: extractPreferences(blocks),
+    commits: formatCommits(extractCommits(blocks)),
+    userPreferences,
     briefTranscript: stringifyBrief(briefSections),
     transcriptEntries: sectionsToTranscript(briefSections),
   };

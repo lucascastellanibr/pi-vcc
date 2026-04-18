@@ -1,11 +1,15 @@
 import type { NormalizedBlock } from "../types";
 import { clip, firstLine } from "./content";
-import { redact } from "./redact";
 import { extractPath } from "./tool-args";
 import { collapseSkillText } from "./skill-collapse";
 
 const TRUNCATE_USER = 256;
 const TRUNCATE_ASSISTANT = 200;
+
+// Strip common self-reflective assistant prefixes that carry no semantic info.
+// Conservative list: only removes the leading filler, preserves the actual content.
+const SELF_TALK_PREFIX_RE =
+  /^\s*(?:hmm|wait|actually|oh|okay|ok|well|so|let me (?:try|check|see|think|look))[,.!\s-]+/i;
 
 // ── noise filtering ──
 
@@ -98,7 +102,7 @@ const toolOneLiner = (name: string, args: Record<string, unknown>): string => {
   if (name === "bash" || name === "Bash") {
     const raw = (args.command ?? args.description ?? "") as string;
     const cmd = compressBash(raw);
-    return `* ${name} "${redact(cmd)}"`;
+    return `* ${name} "${cmd}"`;
   }
   if (typeof args.query === "string") {
     return `* ${name} "${clip(args.query as string, 60)}"`;
@@ -153,7 +157,14 @@ export const buildBriefSections = (blocks: NormalizedBlock[]): BriefLine[] => {
         break;
       }
       case "assistant": {
-        const text = truncateTokens(b.text, TRUNCATE_ASSISTANT);
+        let raw = b.text;
+        // Strip leading self-talk prefix (up to 2x; assistants sometimes chain "Hmm, actually, ...")
+        for (let i = 0; i < 2; i++) {
+          const stripped = raw.replace(SELF_TALK_PREFIX_RE, "");
+          if (stripped === raw) break;
+          raw = stripped;
+        }
+        const text = truncateTokens(raw, TRUNCATE_ASSISTANT);
         if (text) {
           const ref = b.sourceIndex != null ? ` (#${b.sourceIndex})` : "";
           push("[assistant]", text + ref);
@@ -161,6 +172,8 @@ export const buildBriefSections = (blocks: NormalizedBlock[]): BriefLine[] => {
         break;
       }
       case "tool_call": {
+        // Skip malformed tool calls from streaming providers (empty name / fragmented args).
+        if (!b.name || b.name.trim() === "") break;
         const ref = b.sourceIndex != null ? ` (#${b.sourceIndex})` : "";
         const summary = toolOneLiner(b.name, b.args) + ref;
         push("[assistant]", summary);
@@ -168,9 +181,12 @@ export const buildBriefSections = (blocks: NormalizedBlock[]): BriefLine[] => {
       }
       case "tool_result": {
         if (b.isError) {
+          const body = firstLine(b.text, 150);
+          // Drop empty/placeholder error bodies — keep the line only if it carries info.
+          if (!body || body === "(no output)") break;
           const ref = b.sourceIndex != null ? ` (#${b.sourceIndex})` : "";
           const header = `[tool_error] ${b.name}${ref}`;
-          push(header, firstLine(b.text, 150));
+          push(header, body);
           lastHeader = header;
         }
         break;
@@ -201,6 +217,34 @@ export const buildBriefSections = (blocks: NormalizedBlock[]): BriefLine[] => {
     }
     sec.lines = out;
   }
+
+  // Collapse consecutive identical [tool_error] sections (same tool, same body).
+  // E.g. 20 back-to-back `[tool_error] bash (#N) ... Command aborted` become one
+  // `[tool_error] bash (#refs...) x20` entry.
+  const collapsedErrors: BriefLine[] = [];
+  for (const sec of sections) {
+    const m = sec.header.match(/^\[tool_error\]\s+(\S+?)(?:\s*\(#(\d+)\))?$/);
+    if (!m || sec.lines.length !== 1) {
+      collapsedErrors.push(sec);
+      continue;
+    }
+    const tool = m[1];
+    const ref = m[2];
+    const body = sec.lines[0];
+    const prev = collapsedErrors[collapsedErrors.length - 1];
+    const prevMatch = prev?.header.match(
+      /^\[tool_error\]\s+(\S+?)\s*\(((?:#\d+(?:,\s*)?)+)\)(?:\s*x(\d+))?$/,
+    );
+    if (prev && prevMatch && prevMatch[1] === tool && prev.lines.length === 1 && prev.lines[0] === body) {
+      const refs = prevMatch[2] + (ref ? `, #${ref}` : "");
+      const count = prevMatch[3] ? parseInt(prevMatch[3]) + 1 : 2;
+      prev.header = `[tool_error] ${tool} (${refs}) x${count}`;
+    } else {
+      collapsedErrors.push(sec);
+    }
+  }
+  sections.length = 0;
+  sections.push(...collapsedErrors);
 
   return sections;
 };
