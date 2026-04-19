@@ -11,7 +11,7 @@ export interface CompileInput {
   fileOps?: FileOps;
 }
 
-const HEADER_NAMES = ["Session Goal", "Files And Changes", "Outstanding Context", "User Preferences"];
+const HEADER_NAMES = ["Session Goal", "Files And Changes", "Commits", "Outstanding Context", "User Preferences"];
 
 const SEPARATOR = "\n\n---\n\n";
 
@@ -56,7 +56,7 @@ const mergeHeaderSection = (header: string, prev: string, fresh: string): string
   const prevLines = prev.split("\n").filter(isClean);
   const freshLines = fresh.split("\n").filter(isClean);
   const combined = [...new Set([...prevLines, ...freshLines])];
-  const CAP = header === "Session Goal" ? 8 : 15;
+  const CAP = header === "Session Goal" ? 8 : header === "Commits" ? 8 : 15;
   const capped = combined.length > CAP ? combined.slice(-CAP) : combined;
   if (capped.length === 0) return "";
   return `[${header}]\n${capped.join("\n")}`;
