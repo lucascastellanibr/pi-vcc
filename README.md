@@ -68,8 +68,8 @@ pi -e https://github.com/sting8k/pi-vcc
 
 Once installed, pi-vcc registers a `session_before_compact` hook.
 
-- When Pi triggers a compaction, pi-vcc supplies the summary.
-- To trigger compaction manually, run `/pi-vcc`.
+- Run `/pi-vcc` to trigger pi-vcc compaction manually.
+- By default, `/compact` and auto-threshold compactions still go through pi core (LLM-based). Set `overrideDefaultCompaction: true` in the config to let pi-vcc handle all compaction paths.
 - To search older history after compaction, use `vcc_recall`.
 - To search and feed results to agent yourself, run `/pi-vcc-recall <query> [page:N]`.
   - Tip: type `/recall` and Pi will autocomplete to `/pi-vcc-recall`.
@@ -176,15 +176,19 @@ Typical workflow: **search → find relevant entry indices → expand those indi
 5. **Format** — render into bracketed sections + transcript
 6. **Merge** — if previous summary exists: sticky sections merge, volatile sections replace, transcript rolls
 
-## Debug
+## Config
 
-Debug logging is off by default. Enable it in `~/.pi/agent/pi-vcc-config.json`:
+Config lives at `~/.pi/agent/pi-vcc-config.json` (auto-scaffolded on first load with safe defaults):
 
 ```json
-{ "debug": true }
+{
+  "overrideDefaultCompaction": false,
+  "debug": false
+}
 ```
 
-When enabled, each compaction writes detailed info to `/tmp/pi-vcc-debug.json` — message counts, cut boundary, summary preview, sections.
+- **`overrideDefaultCompaction`** *(default `false`)*: when `false`, pi-vcc only runs for `/pi-vcc`; `/compact` and auto-threshold compactions fall through to pi core. Set `true` to make pi-vcc handle all compaction paths.
+- **`debug`** *(default `false`)*: when `true`, each compaction writes detailed info to `/tmp/pi-vcc-debug.json` — message counts, cut boundary, summary preview, sections.
 
 ## Related Work
 
