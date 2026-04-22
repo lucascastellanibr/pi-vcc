@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { buildOwnCut } from "../src/hooks/before-compact";
 
-const msg = (id: string, role: "user" | "assistant", content = "x") => ({
+const msg = (id: string, role: "user" | "assistant" | "toolResult", content = "x") => ({
   id,
   type: "message",
   message: { role, content },
@@ -21,29 +21,40 @@ describe("buildOwnCut", () => {
       msg("m3", "user", "c"),
       msg("m4", "assistant", "d"),
     ]);
-    expect(r).not.toBeNull();
-    expect(r!.firstKeptEntryId).toBe("m3");
-    expect(r!.messages).toHaveLength(2);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.firstKeptEntryId).toBe("m3");
+    expect(r.messages).toHaveLength(2);
+    expect(r.compactAll).toBe(false);
   });
 
-  test("returns null when liveMessages <= 2", () => {
+  test("cancels with too_few_live_messages when liveMessages <= 2", () => {
     const r = buildOwnCut([
       comp("c1", "m1"),
       msg("m1", "user", "x"),
       msg("m2", "assistant", "y"),
     ]);
-    expect(r).toBeNull();
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toBe("too_few_live_messages");
   });
 
-  test("returns null when firstKeptEntryId is orphan (not in branch)", () => {
+  test("orphan firstKeptEntryId triggers recovery (collect after compaction)", () => {
+    // Prev compaction set firstKeptEntryId to a non-existent id (e.g. "" sentinel
+    // from a previous compact-all). Recovery should collect msgs after compaction.
     const r = buildOwnCut([
+      msg("old1", "user", "old"),
+      msg("old2", "assistant", "old"),
       comp("c1", "ORPHAN_ID"),
       msg("m1", "user", "a"),
       msg("m2", "assistant", "b"),
       msg("m3", "user", "c"),
       msg("m4", "assistant", "d"),
     ]);
-    expect(r).toBeNull();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.firstKeptEntryId).toBe("m3");
+    expect(r.messages).toHaveLength(2);
   });
 
   test("resumes from firstKeptEntryId after prior compaction", () => {
@@ -56,17 +67,74 @@ describe("buildOwnCut", () => {
       msg("m3", "user", "c"),
       msg("m4", "assistant", "d"),
     ]);
-    expect(r).not.toBeNull();
-    expect(r!.firstKeptEntryId).toBe("m3");
-    expect(r!.messages).toHaveLength(2);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.firstKeptEntryId).toBe("m3");
+    expect(r.messages).toHaveLength(2);
   });
 
-  test("returns null when cutIdx resolves to 0 (first is user only)", () => {
+  test("single user prompt + autonomous tail: compact all", () => {
+    // The Discord scenario: user types 1 prompt, agent runs autonomously
+    // (assistant + toolResult interleaved). No user > idx 0.
     const r = buildOwnCut([
-      msg("m1", "user", "only-user"),
-      msg("m2", "assistant", "a"),
-      msg("m3", "assistant", "b"),
+      msg("m1", "user", "go"),
+      msg("m2", "assistant", "calling tool"),
+      msg("m3", "toolResult", "result"),
+      msg("m4", "assistant", "more"),
+      msg("m5", "toolResult", "result2"),
+      msg("m6", "assistant", "done"),
     ]);
-    expect(r).toBeNull();
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compactAll).toBe(true);
+    expect(r.firstKeptEntryId).toBe("");
+    expect(r.messages).toHaveLength(6);
+  });
+
+  test("no_user_message when no user role at all", () => {
+    const r = buildOwnCut([
+      msg("m1", "assistant", "a"),
+      msg("m2", "assistant", "b"),
+      msg("m3", "assistant", "c"),
+    ]);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toBe("no_user_message");
+  });
+
+  test("compact-all then more chat: orphan recovery + normal cut", () => {
+    // After a compact-all (firstKeptEntryId=""), user chats more turns,
+    // next compaction should orphan-recover and find multiple users.
+    const r = buildOwnCut([
+      msg("o1", "user", "old"),
+      msg("o2", "assistant", "old"),
+      comp("c1", ""), // sentinel from prior compact-all
+      msg("u1", "user", "new1"),
+      msg("a1", "assistant", "reply1"),
+      msg("u2", "user", "new2"),
+      msg("a2", "assistant", "reply2"),
+      msg("u3", "user", "new3"),
+      msg("a3", "assistant", "reply3"),
+    ]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compactAll).toBe(false);
+    expect(r.firstKeptEntryId).toBe("u3");
+    expect(r.messages).toHaveLength(4); // u1, a1, u2, a2
+  });
+
+  test("compact-all then single user msg + autonomous: compact all again", () => {
+    const r = buildOwnCut([
+      msg("o1", "user", "old"),
+      comp("c1", ""),
+      msg("u1", "user", "okay"),
+      msg("a1", "assistant", "x"),
+      msg("t1", "toolResult", "y"),
+      msg("a2", "assistant", "z"),
+    ]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compactAll).toBe(true);
+    expect(r.firstKeptEntryId).toBe("");
   });
 });

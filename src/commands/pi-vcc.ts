@@ -16,7 +16,7 @@ export const registerPiVccCommand = (pi: ExtensionAPI) => {
           const stats = getLastCompactionStats();
           if (stats) {
             ctx.ui.notify(
-              `Compacted ${stats.summarized} msgs | Kept last ${stats.kept} msgs [~${formatTokens(stats.keptTokensEst)} toks]`,
+              `pi-vcc: Compacted ${stats.summarized} msgs | Kept last ${stats.kept} msgs [~${formatTokens(stats.keptTokensEst)} toks]`,
               "info",
             );
           } else {

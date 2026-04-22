@@ -14,7 +14,13 @@ export interface CompactionStats {
 }
 
 let lastStats: CompactionStats | null = null;
+let lastCompactWasPiVcc = false;
 export const getLastCompactionStats = () => lastStats;
+
+const formatTokens = (n: number): string => {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+};
 
 const dbg = (settings: PiVccSettings, data: Record<string, unknown>) => {
   if (!settings.debug) return;
@@ -43,7 +49,16 @@ interface EntryWithMessage {
   message: { role: string; content: unknown };
 }
 
-export function buildOwnCut(branchEntries: any[]): { messages: any[]; firstKeptEntryId: string } | null {
+export type OwnCutCancelReason =
+  | "no_live_messages"
+  | "too_few_live_messages"
+  | "no_user_message";
+
+export type OwnCutResult =
+  | { ok: true; messages: any[]; firstKeptEntryId: string; compactAll: boolean }
+  | { ok: false; reason: OwnCutCancelReason };
+
+export function buildOwnCut(branchEntries: any[]): OwnCutResult {
   // Find the last compaction entry and its firstKeptEntryId
   let lastCompactionIdx = -1;
   let lastKeptId: string | undefined;
@@ -55,39 +70,75 @@ export function buildOwnCut(branchEntries: any[]): { messages: any[]; firstKeptE
     }
   }
 
-  // Collect live messages: either from firstKeptEntryId (if prev compaction exists)
-  // or all messages (no prior compaction)
+  // Orphan recovery: triggers when lastKeptId is set to "" (sentinel from prior
+  // compact-all) OR set to an id that no longer exists in the branch. In both cases,
+  // start collecting from right after the last compaction entry.
+  const hasPriorCompaction = lastCompactionIdx >= 0;
+  const hasValidKeptId = !!lastKeptId && branchEntries.some((e: any) => e.id === lastKeptId);
+  const orphanRecovery = hasPriorCompaction && !hasValidKeptId;
+
+  // Collect live messages
   const liveMessages: EntryWithMessage[] = [];
-  let foundKept = !lastKeptId; // if no prior compaction, start collecting immediately
-  for (const e of branchEntries) {
-    if (!foundKept && e.id === lastKeptId) foundKept = true;
-    if (!foundKept) continue;
-    if (e.type === "compaction") continue; // skip the compaction entry itself
-    if (e.type === "message" && e.message) {
-      liveMessages.push({ entry: e, message: e.message });
+  if (orphanRecovery) {
+    for (let i = lastCompactionIdx + 1; i < branchEntries.length; i++) {
+      const e = branchEntries[i];
+      if (e.type === "compaction") continue;
+      if (e.type === "message" && e.message) {
+        liveMessages.push({ entry: e, message: e.message });
+      }
+    }
+  } else {
+    let foundKept = !lastKeptId; // if no prior compaction, start collecting immediately
+    for (const e of branchEntries) {
+      if (!foundKept && e.id === lastKeptId) foundKept = true;
+      if (!foundKept) continue;
+      if (e.type === "compaction") continue;
+      if (e.type === "message" && e.message) {
+        liveMessages.push({ entry: e, message: e.message });
+      }
     }
   }
 
-  if (liveMessages.length <= 2) return null;
+  if (liveMessages.length === 0) return { ok: false, reason: "no_live_messages" };
+  if (liveMessages.length <= 2) return { ok: false, reason: "too_few_live_messages" };
 
   // Summarize all messages, keep only the last user message as context
   let cutIdx = liveMessages.length - 1;
-
-  // Align to last user message boundary
   while (cutIdx > 0 && liveMessages[cutIdx].message.role !== "user") {
     cutIdx--;
   }
 
-  if (cutIdx <= 0) return null;
+  if (cutIdx <= 0) {
+    // Single user prompt scenario (or no user at all).
+    // If there's at least one user message, compact EVERYTHING and keep no tail.
+    // firstKeptEntryId="" is a sentinel: pi-core's buildSessionContext won't match it
+    // (so 0 kept from pre-compaction), and next buildOwnCut triggers orphan recovery.
+    const hasUser = liveMessages.some((m) => m.message.role === "user");
+    if (!hasUser) return { ok: false, reason: "no_user_message" };
+    return {
+      ok: true,
+      messages: liveMessages.map((e) => e.message),
+      firstKeptEntryId: "",
+      compactAll: true,
+    };
+  }
 
   return {
+    ok: true,
     messages: liveMessages.slice(0, cutIdx).map((e) => e.message),
     firstKeptEntryId: liveMessages[cutIdx].entry.id,
+    compactAll: false,
   };
 }
 
+const REASON_MESSAGES: Record<OwnCutCancelReason, string> = {
+  no_live_messages: "pi-vcc: Nothing to compact (no live messages)",
+  too_few_live_messages: "pi-vcc: Too few messages to compact",
+  no_user_message: "pi-vcc: Cannot compact — no user message found",
+};
+
 export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
-  pi.on("session_before_compact", (event) => {
+  pi.on("session_before_compact", (event, ctx) => {
     const { preparation, branchEntries, customInstructions } = event;
     const settings = loadSettings();
 
@@ -97,18 +148,51 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
     if (!isPiVcc && !settings.overrideDefaultCompaction) return;
 
     const ownCut = buildOwnCut(branchEntries as any[]);
-    if (!ownCut) {
+    if (!ownCut.ok) {
       const lastComp = [...branchEntries].reverse().find((e: any) => e.type === "compaction");
       const lastCompIdx = lastComp ? (branchEntries as any[]).indexOf(lastComp) : -1;
+
+      // Recompute liveMessages view (same logic as buildOwnCut) for diagnostic
+      const lastKeptId: string | undefined = lastComp?.firstKeptEntryId;
+      const hasPriorCompaction = lastCompIdx >= 0;
+      const hasValidKeptId = !!lastKeptId && (branchEntries as any[]).some((e: any) => e.id === lastKeptId);
+      const diagOrphan = hasPriorCompaction && !hasValidKeptId;
+      const liveRoles: string[] = [];
+      if (diagOrphan) {
+        for (let i = lastCompIdx + 1; i < branchEntries.length; i++) {
+          const e = (branchEntries as any[])[i];
+          if (e.type === "compaction") continue;
+          if (e.type === "message" && e.message) liveRoles.push(e.message.role);
+        }
+      } else {
+        let foundKept = !lastKeptId;
+        for (const e of branchEntries as any[]) {
+          if (!foundKept && e.id === lastKeptId) foundKept = true;
+          if (!foundKept) continue;
+          if (e.type === "compaction") continue;
+          if (e.type === "message" && e.message) liveRoles.push(e.message.role);
+        }
+      }
+      const userIndices = liveRoles.reduce<number[]>((acc, r, i) => (r === "user" ? (acc.push(i), acc) : acc), []);
+
       dbg(settings, {
         cancelled: true,
-        reason: "ownCut_null",
+        reason: ownCut.reason,
         isPiVcc,
         counts: {
           total: branchEntries.length,
           messages: (branchEntries as any[]).filter((e: any) => e.type === "message").length,
           compactions: (branchEntries as any[]).filter((e: any) => e.type === "compaction").length,
           entriesAfterLastCompaction: lastCompIdx >= 0 ? branchEntries.length - lastCompIdx - 1 : null,
+        },
+        liveMessages: {
+          count: liveRoles.length,
+          userCount: userIndices.length,
+          firstUserIdx: userIndices[0] ?? null,
+          lastUserIdx: userIndices[userIndices.length - 1] ?? null,
+          roleSequence: liveRoles.length <= 30
+            ? liveRoles
+            : [...liveRoles.slice(0, 10), "...", ...liveRoles.slice(-10)],
         },
         lastCompaction: lastComp ? {
           hasFirstKeptEntryId: !!lastComp.firstKeptEntryId,
@@ -123,6 +207,9 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
         })),
       });
 
+      try {
+        ctx?.ui?.notify?.(REASON_MESSAGES[ownCut.reason], "warning");
+      } catch {}
       return { cancel: true };
     }
 
@@ -196,6 +283,8 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
       previousSummaryUsed: Boolean(preparation.previousSummary),
     };
 
+    lastCompactWasPiVcc = isPiVcc;
+
     return {
       compaction: {
         summary,
@@ -204,5 +293,22 @@ export const registerBeforeCompactHook = (pi: ExtensionAPI) => {
         firstKeptEntryId,
       },
     };
+  });
+
+  // Fire success toast for /compact path only (delayed to let UI settle).
+  // /pi-vcc path uses its own onComplete callback in the command handler.
+  pi.on("session_compact", (event, ctx) => {
+    if (!event.fromExtension) return;
+    if (lastCompactWasPiVcc) return; // /pi-vcc handles its own toast via onComplete
+    const stats = lastStats;
+    if (!stats) return;
+    setTimeout(() => {
+      try {
+        ctx?.ui?.notify?.(
+          `pi-vcc: Compacted ${stats.summarized} msgs | Kept last ${stats.kept} msgs [~${formatTokens(stats.keptTokensEst)} toks]`,
+          "info",
+        );
+      } catch {}
+    }, 500);
   });
 };
