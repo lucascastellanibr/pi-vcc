@@ -4,6 +4,7 @@ import { loadAllMessages } from "../core/load-messages";
 import { searchEntries } from "../core/search-entries";
 import { formatRecallOutput } from "../core/format-recall";
 import { getActiveLineageEntryIds } from "../core/lineage";
+import { normalizeRecallScope } from "../core/recall-scope";
 
 const DEFAULT_RECENT = 25;
 const PAGE_SIZE = 5;
@@ -16,16 +17,10 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
     name: "vcc_recall",
     label: "VCC Recall",
     description:
-      "Search conversation history in the active lineage for this session, including before compaction on that lineage." +
-      " Use without query to see recent brief history." +
-      " Use with query to search history. Query supports regex (e.g. 'hook|inject', 'fail.*build')." +
-      " Multi-word queries use OR logic ranked by relevance — use keywords, not full sentences." +
-      " Use expand with entry indices to get full content (note: some tool results may already be truncated by Pi core before saving)." +
-      " Search returns 5 results per page — use page:N for more.",
+      "Search session history. Defaults to active lineage; use scope:'all' to include off-lineage branches." +
+      " Supports regex queries, paging, and expand indices.",
     promptSnippet:
-      "vcc_recall: Search active-lineage conversation history including compacted parts." +
-      " Supports regex (e.g. 'hook|inject'). Multi-word = OR + ranked." +
-      " Use expand:[indices] for full content.",
+      "vcc_recall: Search history; default scope is active lineage. Use scope:'all' for off-lineage branches.",
     parameters: Type.Object({
       query: Type.Optional(
         Type.String({ description: "Search terms or regex pattern (e.g. 'hook|inject', 'fail.*build'). Multi-word = OR ranked by relevance." }),
@@ -35,6 +30,12 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
       ),
       page: Type.Optional(
         Type.Number({ description: "Page number (1-based) for paginated search results. Default: 1." }),
+      ),
+      scope: Type.Optional(
+        Type.Union([
+          Type.Literal("lineage"),
+          Type.Literal("all"),
+        ], { description: "Search scope. Default: lineage; all includes off-lineage branches." }),
       ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -46,7 +47,10 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
         };
       }
 
-      const lineageEntryIds = getActiveLineageEntryIds(ctx.sessionManager);
+      const scope = normalizeRecallScope(params.scope);
+      const lineageEntryIds = scope === "lineage"
+        ? getActiveLineageEntryIds(ctx.sessionManager)
+        : undefined;
       const expandSet = new Set(params.expand ?? []);
       const hasExpand = expandSet.size > 0;
 
@@ -57,13 +61,13 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
         const invalid = invalidExpandIndices(requested, new Set(byIndex.keys()));
         if (invalid.length > 0) {
           return {
-            content: [{ type: "text", text: `Cannot expand indices outside active lineage: ${invalid.join(", ")}` }],
+            content: [{ type: "text", text: `Cannot expand indices outside ${scope === "all" ? "session history" : "active lineage"}: ${invalid.join(", ")}` }],
             details: undefined,
           };
         }
 
         const expanded = requested.map((i) => byIndex.get(i)).filter((m): m is NonNullable<typeof m> => Boolean(m));
-        const output = formatRecallOutput(expanded);
+        const output = (scope === "all" ? "Scope: all\n\n" : "") + formatRecallOutput(expanded);
         return {
           content: [{ type: "text", text: output }],
           details: undefined,
@@ -80,11 +84,12 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
         const start = (page - 1) * PAGE_SIZE;
         const pageResults = allResults.slice(start, start + PAGE_SIZE);
         const totalPages = Math.ceil(allResults.length / PAGE_SIZE);
+        const scopeSuffix = scope === "all" ? " (scope: all)" : "";
         const header = totalPages > 1
-          ? `Page ${page}/${totalPages} (${allResults.length} total matches)`
-          : `${allResults.length} matches`;
+          ? `Page ${page}/${totalPages} (${allResults.length} total matches${scopeSuffix})`
+          : `${allResults.length} matches${scopeSuffix}`;
         const footer = page < totalPages
-          ? `\n--- Use page:${page + 1} for more results ---`
+          ? `\n--- Use page:${page + 1}${scope === "all" ? " with scope:'all'" : ""} for more results ---`
           : "";
         const output = formatRecallOutput(pageResults, params.query, header) + footer;
         return {
@@ -93,7 +98,7 @@ export const registerRecallTool = (pi: ExtensionAPI) => {
         };
       }
 
-      const output = formatRecallOutput(allResults, params.query);
+      const output = (scope === "all" ? "Scope: all\n\n" : "") + formatRecallOutput(allResults, params.query);
       return {
         content: [{ type: "text", text: output }],
         details: undefined,
