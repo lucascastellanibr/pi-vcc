@@ -6,6 +6,10 @@ Algorithmic conversation compactor for [Pi](https://github.com/badlogic/pi-mono)
 
 Inspired by [VCC](https://github.com/lllyasviel/VCC) **(View-oriented Conversation Compiler)**.
 
+## Demo
+
+![pi-vcc demo](./demo.gif)
+
 ## Why pi-vcc
 
 |  | Pi default | pi-vcc |
